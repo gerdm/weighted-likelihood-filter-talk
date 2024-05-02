@@ -9,7 +9,7 @@ title: WoLF — (W)eighted (L)ikelihood (F)ilter
 
 
 # WoLF
-## (W)eighted (L)ikelihood (F)ilter
+## (W)eighted-(o)bservation (L)ikelihood (F)ilter
 
 Gerardo Duran-Martin
 
@@ -28,11 +28,11 @@ Gerardo Duran-Martin
 layout: center
 ---
 
-# (Markovian) State space models (SSM)
+# State space models (SSMs)
 
 ---
 
-## SSMs — cont’d
+## SSMs
 Measurements  $\bm y_t \in \R^d$ are modelled by an unobserved (latent) state process $\bm\theta_t \in \R^p$:
 
 $$
@@ -86,9 +86,10 @@ State transition $\bm\theta_t$: non-linear and known | measurement $\bm y_t$: li
 
 ## (iii) Sequential training of non-linear models (neural networks)
 
-State transition $\bm\theta_t$: linear and unknown | measurement $\bm y_t$: non-linear and unknown.  
-We observe measurements from an unknown function and estimate it using a neural network.
-One update per iteration. State has no physical interpretation.
+State transition $\bm\theta_t$: linear | measurement function $h_t$: non-linear (misspecified).
+State has no physical interpretation.
+Here, $h_t(\theta) = \theta^{(3)}\,g\Big(\theta^{(2)}\,g\left(\theta^{(1)}{\bf x}_t + b^{(1)}\right) + b^{(2)}\Big) + b^{(3)}$ is a two-layered neural network with activation function $g$.
+
 
 <img class="horizontal-center" width=500
      src="/attachment/1e9c7bc1936b8d406c0d6fe557d7666f.gif">
@@ -107,9 +108,7 @@ p({\bf y}_t \vert \bm\theta_t) &=
 \end{aligned}
 $$
 
-then the Kalman filter (KF) is the *optimal* filter in terms of residual mean squared error.
-
-Vast literature, for non-linear / non-Gaussian / non-Markovian SSMs, but we focus on closed-form update rules for computational tractability. 
+the Kalman filter (KF) is the *optimal* filter in terms of residual mean squared error.
 
 ---
 
@@ -156,7 +155,16 @@ $$
 layout: center
 ---
 
-# Extensions to the KF
+# KF extensions
+
+---
+
+## KF extensions cont’d
+
+Vast literature on non-linear / non-Gaussian / non-Markovian SSMs, but we focus on closed-form update rules for computational tractability. 
+In particular, we consider
+1. Extended Kalman filter (EKF), and
+2. Ensemble Kalman filter (EnKF).
 
 ---
 
@@ -242,11 +250,85 @@ Any measurement has 15% probability of taking value between -50 and 50.
 
 ---
 
+# Robustifying the KF (via variational Bayes)
+Literature in recent years has focused in making robust versions of the KF by increasing the state-space and finding a variational Bayes (VB) posterior.
+
+---
+
+## Agamenoni et.al (2012) --- compensation-based
+Extend state-space to include the measurement noise covariance matrix ${\bm R}_t$.
+$$
+\begin{aligned}
+    p({\bm \theta}_t\vert{\bm \theta}_{t-1}) &=
+    {\cal N}({\bm \theta}_t \vert f({\bm \theta}_{t-1}), {\bf Q}_t)\\
+    p({\bm R}_t) &= {\cal W}^{-1}({\bm R}_t \vert \nu{\bm\Lambda}, \nu)\\
+    p({\bm y}_t \vert {\bm\theta}_t, {\bm R}_t) &= 
+    {\cal N}({\bm y}_t \vert h_t({\bm \theta_t}), {\bm R}_t)
+\end{aligned}
+$$
+
+VB posterior is
+$$
+q_R^*, q_\theta^* =
+\arg\min_{q_\theta, q_R}\mathbb{KL}\Big(
+q_R({\bm R}_t)\,q_\theta({\bm \theta}_t)
+\,\|\,
+p({\bm R}_t, {\bm \theta}_t \vert {\bm y}_{1:t})
+\Big)
+$$
+
+---
+
+## Wang et.al (2018) --- detect-and-reject
+Extend state-space to include a binary variable $w_t$ that indicates whether the measurement is informative or not.
+$$
+\begin{aligned}
+    p({\bm \theta}_t\vert{\bm \theta}_{t-1}) &=
+    {\cal N}({\bm \theta}_t \vert f({\bm \theta}_{t-1}), {\bf Q}_t)\\
+    p(\xi_t) &= {\rm Beta}(\xi_t \vert \alpha_0, \beta_0) \\
+    p(w_t \vert \xi_t) &= {\rm Bern}(w_t \vert \xi_t)\\
+    p({\bm y}_t \vert {\bm\theta}_t, {\bm R}_t) &= 
+    \begin{cases}
+        {\cal N}({\bm y}_t \vert h_t({\bm \theta_t}), {\bm R}_t)&
+        \text{if } w_t=1\\
+        1 & \text{if } w_t = 0 
+    \end{cases}
+\end{aligned}
+$$
+
+VB posterior is
+
+$$
+q_\xi^*, q_w^*, q_\theta^* =
+\arg\min_{q_\xi, q_w, q_\theta}\mathbb{KL}\Big(
+q_\xi(\xi_t)\,q_w(w)\,q_\theta({\bm \theta}_t)
+\,\|\,
+p(\xi_t, w_t, {\bm \theta}_t \vert {\bm y}_{1:t})
+\Big)
+$$
+
+---
+
+## Robust KF via VB --- cont’d
+
+The methods above:
+1. are not straightforward to implement,
+2. are not provably robust,
+3. are at least $I$ times (number of inner iteration) slower than KF methods.
+
+---
+layout: center
+---
+
+# The weighted likelihood filter (WoLF)
+
+----
+
 # The weighted likelihood filter — WoLF
 Replace log-likelihood with loss function of the form
 $$
 \begin{aligned}
-\ell_t(\bm\theta_t) &= W_t(\bm y_{1:t})\,\log{\cal N}(\bm y_t \vert h_t(\bm\theta_t), {\bf R}_t).
+\ell_t(\bm\theta_t) &= -W_t(\bm y_{1:t})\,\log{\cal N}(\bm y_t \vert h_t(\bm\theta_t), {\bf R}_t).
 \end{aligned}
 $$
 We estimate
@@ -258,7 +340,7 @@ $$
 ---
 
 ## Why?
-1. For some choices of $W_t$, we show that our method is **provably robust** — in a posterior influence function (PIF) sense—,
+1. For some choices of $W_t$, we show that our method is **provably robust**,
 2. straightforward to implement, and
 3. orders of magnitude faster than alternative robust methods.
 
@@ -305,6 +387,43 @@ with $c > 0$ the soft-threshold.
 Measures our tolerance to the worst-case inlier.
 
 ---
+
+## Robustness
+
+**Definition: posterior influence function (PIF)**  
+$$
+\text{PIF}(\bm y_t^c, \bm y_{1:t}) = \text{KL}(
+    q(\bm\theta_t  \vert \bm y_t^c, \bm y_{1:t-1})\,\|\,
+    q(\bm\theta_t  \vert \bm y_t, \bm y_{1:t-1})
+    ).
+$$
+
+<br>
+
+**Definition: outlier-robust filter**  
+A filter is outlier-robust if the PIF is bounded, i.e.,
+$$
+\sup_{\bm y_t^c\in\R^d}|\text{PIF}(\bm y_t^c, \bm y_{1:t-1})| < \infty.
+$$
+
+---
+
+### Theorem
+If $\sup_{\bm y_t\in\R^d} W_t(\bm y_t) < \infty$ and $\sup_{\bm y_t\in\R^d} W_t(\bm y_{1:t})^2 \|\bm y_t\|^2 < \infty$ then the PIF is bounded.
+
+<br> 
+
+**Remarks**
+1. The KF is not outlier robust
+2. WoLF with IMQ weighting function is outlier robust
+
+---
+
+### Robustness --- cont’d
+<img class="horizontal-center" width=75%
+     src="/attachment/20240501-2d-tracking-grid-pif.png">
+
+---
 layout: center
 ---
 
@@ -331,20 +450,10 @@ layout: center
 <img class="horizontal-center" width=500
      src="/attachment/b90056b22de044b15657d12ad3258d12.gif">
 
----
-
-## What about alternative Bayesian methods?
-
-Probabilistic-based methods to filtering usually solve the fixed-point solution to a variational-Bayes problem. This makes them
-
-1. Not scalable to high-dimensional problems,
-2. sensitive to the choice of hyperparameters, 
-3. not provably robust, and
-4. of high computational cost.
 
 ---
 
-### What about alternative methods? --- cont’d
+### What about alternative methods?
 Online training of neural networks in corrupted UCI datasets.
 
 <figure>
@@ -359,4 +468,4 @@ Online training of neural networks in corrupted UCI datasets.
 ---
 layout: end
 ---
-Done.
+gerdm.github.io/weighted-likelihood-filter
