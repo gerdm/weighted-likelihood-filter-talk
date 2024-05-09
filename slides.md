@@ -18,7 +18,7 @@ Gerardo Duran-Martin
  Matias Altamirano,
  Alexander Y. Shestopaloff,
  Leandro Sanchez-Betancourt,
- Jermias Knoblauch,
+ Jeremias Knoblauch,
  Matt Jones,
  François-Xavier Briol, and
  Kevin Murphy.
